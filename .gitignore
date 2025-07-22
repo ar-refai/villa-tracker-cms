@@ -52,3 +52,20 @@ CodeCoverage/
 *.VisualState.xml
 TestResult.xml
 nunit-*.xml
+## Ignore user-specific files
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+## Ignore Visual Studio temporary folders
+.vs/
+.vscode/
+.idea/
+
+## Ignore Rider project files
+*.sln.iml
+
+## Ignore bin and obj deeply (redundant but bulletproof)
+**/bin/
+**/obj/
