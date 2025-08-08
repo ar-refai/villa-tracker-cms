@@ -44,6 +44,7 @@ builder.Services.AddAutoMapper(typeof(AutoMapping));
 
 // --- Application Services ---
 builder.Services.AddScoped<IAuthenticationService, AuthenticationService>();
+builder.Services.AddScoped<IVillaService, VillaService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
@@ -126,6 +127,7 @@ builder.Services.AddCors();
 
 var app = builder.Build();
 
+app.UseStaticFiles(); // for file uploads
 
 // Create roles within a scoped service
 using (var scope = app.Services.CreateScope())

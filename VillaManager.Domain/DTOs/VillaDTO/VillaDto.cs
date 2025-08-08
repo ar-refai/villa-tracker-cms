@@ -2,10 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
 
-namespace VillaManager.Data.Models
+namespace VillaManager.Domain.DTOs.VillaDTO
 {
-    public class Villa
+    public class VillaDto
     {
         public int Id { get; set; }
         public string Name { get; set; }
@@ -13,8 +14,8 @@ namespace VillaManager.Data.Models
         public string Description { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public bool IsDeleted { get; set; } = false;
-
-        public ICollection<VillaFile> Files { get; set; }
+        // one or more files can be associated with a villa
+        public List<VillaFileDto> Files { get; set; } = new();
 
     }
 }

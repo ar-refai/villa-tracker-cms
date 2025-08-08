@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using VillaManager.Data.Models;
 
 namespace VillaManager.Data.Repositories
 {
@@ -17,6 +18,9 @@ namespace VillaManager.Data.Repositories
         {
             _context = context;
         }
+        public ApplicationDbContext Context => _context; 
+        public IGenericRepository<Villa> Villas => new GenericRepository<Villa>(_context);
+        public IGenericRepository<VillaFile> VillaFiles => new GenericRepository<VillaFile>(_context);
 
 
         public async Task SaveAsync()
