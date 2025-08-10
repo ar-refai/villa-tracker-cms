@@ -1,0 +1,40 @@
+@page "/create-villa"
+@using Microsoft.AspNetCore.Components.Forms
+@using VillaManager.Client.Models
+@using VillaManager.Client.Services
+@using Microsoft.AspNetCore.Components.Web
+@inject VillaApiService VillaService
+@inject NavigationManager Nav
+
+
+@code {
+    VillaCreateDto model = new();
+    List<IBrowserFile> selectedFiles = new();
+    private InputFile? fileInput;
+
+    private void HandleFiles(InputFileChangeEventArgs e)
+    {
+        selectedFiles = e.GetMultipleFiles().ToList();
+    }
+
+    private async Task Save()
+    {
+        foreach (var file in selectedFiles)
+        {
+            using var ms = new MemoryStream();
+            await file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024).CopyToAsync(ms);
+            model.Files.Add(new VillaFileUploadDto
+            {
+                FileName = file.Name,
+                ContentType = file.ContentType,
+                Data = ms.ToArray()
+            });
+        }
+
+        var response = await VillaService.CreateAsync(model);
+        if (response.IsSuccessStatusCode)
+        {
+            Nav.NavigateTo("/villas");
+        }
+    }
+}

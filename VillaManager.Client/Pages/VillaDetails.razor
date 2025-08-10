@@ -1,0 +1,101 @@
+@page "/villa/{Id:int}"
+@inject HttpClient Http
+@inject NavigationManager NavigationManager
+
+<div class="container mt-4">
+    @if (villa == null)
+    {
+        <div class="text-center my-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-3">Loading villa details...</p>
+        </div>
+    }
+    else
+    {
+        <div class="card shadow-lg border-0">
+            <img src="@villa.MainImage" class="card-img-top" alt="@villa.Name" style="max-height: 400px; object-fit: cover;" />
+
+            <div class="card-body">
+                <h2 class="card-title text-primary fw-bold">@villa.Name</h2>
+                <p class="card-text text-muted">@villa.Description</p>
+
+                <div class="row mt-3">
+                    <div class="col-md-6">
+                        <p><strong>💲 Price:</strong> <span class="text-success fw-bold">@villa.Price.ToString("C")</span></p>
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong>📍 Location:</strong> <span>@villa.Location</span></p>
+                    </div>
+                </div>
+
+                @if (villa.Files != null && villa.Files.Any())
+                {
+                    <div class="mt-4">
+                        <h5 class="fw-bold">📂 Files</h5>
+                        <ul class="list-group">
+                            @foreach (var file in villa.Files)
+                            {
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <span>@file.FileName</span>
+                                    <a href="@file.FilePath" target="_blank" class="btn btn-sm btn-outline-primary">View</a>
+                                </li>
+                            }
+                        </ul>
+                    </div>
+                }
+                else
+                {
+                    <div class="alert alert-warning mt-4">
+                        No files uploaded for this villa.
+                    </div>
+                }
+
+                <div class="mt-4 d-flex gap-2">
+                    <button class="btn btn-primary" @onclick="EditVilla">✏ Edit Villa</button>
+                    <button class="btn btn-secondary" @onclick="BackToList">⬅ Back to List</button>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private VillaDetailsDto villa;
+
+    protected override async Task OnInitializedAsync()
+    {
+        villa = await Http.GetFromJsonAsync<VillaDetailsDto>($"api/villa/{Id}");
+    }
+
+    private void EditVilla()
+    {
+        NavigationManager.NavigateTo($"/edit-villa/{Id}");
+    }
+
+    private void BackToList()
+    {
+        NavigationManager.NavigateTo("/villas");
+    }
+
+    public class VillaDetailsDto
+    {
+        public int Id { get; set; }
+        public string Name { get; set; }
+        public string Description { get; set; }
+        public decimal Price { get; set; }
+        public string Location { get; set; }
+        public string MainImage { get; set; }
+        public List<VillaFileDto> Files { get; set; }
+    }
+
+    public class VillaFileDto
+    {
+        public int Id { get; set; }
+        public string FileName { get; set; }
+        public string FilePath { get; set; }
+    }
+}

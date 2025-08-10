@@ -1,0 +1,84 @@
+@page "/edit-villa/{id:int}"
+@using VillaManager.Client.Services
+@using VillaManager.Client.Models
+@inject VillaApiService VillaService
+@inject NavigationManager Nav
+
+<h3>Edit Villa</h3>
+
+@if (model == null)
+{
+    <p>Loading...</p>
+}
+else
+{
+    <input @bind="model.Name" placeholder="Name" />
+    <input @bind="model.Location" placeholder="Location" />
+    <textarea @bind="model.Description" placeholder="Description"></textarea>
+
+    <h4>Existing Files</h4>
+    @if (villa?.Files != null && villa.Files.Count > 0)
+    {
+        <ul>
+            @foreach (var file in villa.Files)
+            {
+                <li>
+                    <a href="@file.FilePath" target="_blank">@file.FileName</a>
+                    <button @onclick="() => ToggleFile(file.Id)">
+                        @(model.ExistingFileIds.Contains(file.Id) ? "Keep" : "Remove")
+                    </button>
+                </li>
+            }
+        </ul>
+    }
+    else
+    {
+        <p>No files uploaded</p>
+    }
+
+    <h4>Upload New Files</h4>
+    <InputFile OnChange="HandleNewFiles" multiple />
+
+    <br />
+    <button @onclick="Save">Update Villa</button>
+}
+
+@code {
+    [Parameter]
+    public int id { get; set; }
+
+    private VillaUpdateDto model;
+    private VillaDto villa;
+
+    protected override async Task OnInitializedAsync()
+    {
+        villa = await VillaService.GetAsync(id);
+        model = new VillaUpdateDto
+        {
+            Name = villa.Name,
+            Location = villa.Location,
+            Description = villa.Description,
+            ExistingFileIds = villa.Files?.Select(f => f.Id).ToList() ?? new List<int>()
+        };
+    }
+
+    private void ToggleFile(int fileId)
+    {
+        if (model.ExistingFileIds.Contains(fileId))
+            model.ExistingFileIds.Remove(fileId);
+        else
+            model.ExistingFileIds.Add(fileId);
+    }
+
+    private async Task HandleNewFiles(InputFileChangeEventArgs e)
+    {
+        // Example: store selected files in the model
+        model.NewFiles = e.GetMultipleFiles().ToList();
+    }
+
+    private async Task Save()
+    {
+        await VillaService.UpdateAsync(id, model);
+        Nav.NavigateTo("/villas");
+    }
+}
