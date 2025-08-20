@@ -6,6 +6,7 @@ namespace VillaManager.API.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize] // 👈 applies to all endpoints
     public class VillaController : ControllerBase
     {
         private readonly IVillaService _villaService;

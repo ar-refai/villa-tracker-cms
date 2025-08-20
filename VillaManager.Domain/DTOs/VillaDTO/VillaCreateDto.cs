@@ -9,5 +9,7 @@ namespace VillaManager.Domain.DTOs.VillaDTO
         public string Description { get; set; }
         // Files 
         public List<IFormFile> Files { get; set; } = new List<IFormFile>();
+        // New properties added for creator
+        public int CreatorId { get; set; } // Foreign key to User
     }
 }

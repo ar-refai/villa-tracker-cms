@@ -24,9 +24,22 @@ namespace VillaManager.Data.EntityModel
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
-
-
             base.OnModelCreating(modelBuilder);
+
+            // *** relation: User to Villa
+            modelBuilder.Entity<Villa>()
+                .HasOne(v => v.Creator)
+                .WithMany(u => u.Villas)
+                .HasForeignKey(v => v.CreatorId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // *** relation: Villa to VillaFile
+            modelBuilder.Entity<Villa>()
+                .HasMany(v => v.Files)
+                .WithOne(f => f.Villa)
+                .HasForeignKey(f => f.VillaId)
+                .OnDelete(DeleteBehavior.Cascade);
+                
         }
     }
 }

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
+using VillaManager.Domain.DTOs.UsersDTO;
 
 namespace VillaManager.Domain.DTOs.VillaDTO
 {
@@ -16,6 +17,8 @@ namespace VillaManager.Domain.DTOs.VillaDTO
         public bool IsDeleted { get; set; } = false;
         // one or more files can be associated with a villa
         public List<VillaFileDto> Files { get; set; } = new();
-
+        // New properties added for creator
+        public ShowUserDto? Creator { get; set; } // Navigation property to User
+        public int CreatorId { get; set; } // Foreign key to User
     }
 }

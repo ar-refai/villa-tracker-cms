@@ -9,8 +9,11 @@ namespace VillaManager.Data.EntityModel
     {
         public ApplicationDbContext CreateDbContext(string[] args)
         {
+            // go up to the API project (adjust if folder structure is different)
+            var basePath = Path.Combine(Directory.GetCurrentDirectory(), "../VillaManager.Api");
+
             var config = new ConfigurationBuilder()
-                .SetBasePath(Directory.GetCurrentDirectory()) // or hardcode your API path
+                .SetBasePath(basePath) // or hardcode your API path
                 .AddJsonFile("appsettings.json")
                 .Build();
 

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Security.Claims;
 using System.Threading.Tasks;
 using AutoMapper;
 using Microsoft.AspNetCore.Http;
@@ -16,16 +17,18 @@ namespace VillaManager.Services.Services
         private readonly IUnitOfWork _unitOfWork;
         private readonly IMapper _mapper;
         private readonly string _uploadsPath = Path.Combine("wwwroot", "uploads", "villas");
-
-        public VillaService(IUnitOfWork unitOfWork, IMapper mapper)
+        private readonly IHttpContextAccessor _httpContextAccessor;
+        public VillaService(IUnitOfWork unitOfWork, IMapper mapper , IHttpContextAccessor httpContextAccessor)
         {
+            _httpContextAccessor = httpContextAccessor ?? throw new ArgumentNullException(nameof(httpContextAccessor));
             _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
             _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
         }
 
         public async Task<IEnumerable<VillaDto>> GetAllAsync()
         {
-            var villas = await _unitOfWork.Villas.GetAllAsync(v => !v.IsDeleted);
+            var villas = await _unitOfWork.Villas.GetAllAsync(v => !v.IsDeleted , include: v =>
+                v.Include(v => v.Creator));
             return _mapper.Map<IEnumerable<VillaDto>>(villas);
         }
 
@@ -34,6 +37,7 @@ namespace VillaManager.Services.Services
             var villa = await _unitOfWork.Villas.FindAsync(
                 v => v.Id == id && !v.IsDeleted,
                 include: v => v.Include(v => v.Files)
+                .Include(v => v.Creator)
             );
             if (villa == null || villa.IsDeleted)
                 throw new KeyNotFoundException($"Villa with ID {id} not found.");
@@ -41,20 +45,40 @@ namespace VillaManager.Services.Services
             return _mapper.Map<VillaDto>(villa);
         }
 
-        public async Task<VillaDto> CreateAsync(VillaCreateDto dto)
+         public async Task<VillaDto> CreateAsync(VillaCreateDto dto)
+    {
+        if (dto == null) throw new ArgumentNullException(nameof(dto));
+
+        // map scalar fields from dto
+        var villa = _mapper.Map<Villa>(dto);
+
+        // get current user id from claims
+        var userId = _httpContextAccessor.HttpContext?.User?.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(userId))
+            throw new InvalidOperationException("Cannot determine the current user id from the request context.");
+
+        villa.CreatorId = userId;
+        villa.CreatedAt = DateTime.UtcNow;
+        villa.UpdatedAt = DateTime.UtcNow;
+        villa.IsDeleted = false;
+
+        await _unitOfWork.Villas.AddAsync(villa);
+        await _unitOfWork.SaveAsync(); // ensure we have villa.Id
+
+        if (dto.Files?.Any() == true)
         {
-            if (dto == null) throw new ArgumentNullException(nameof(dto));
-
-            var villa = _mapper.Map<Villa>(dto);
-            await _unitOfWork.Villas.AddAsync(villa);
-            await _unitOfWork.SaveAsync(); // Save to get VillaId for file records
-
-            if (dto.Files != null && dto.Files.Any())
-                villa.Files = await SaveVillaFilesAsync(dto.Files, villa.Id, villa.Name);
-
+            villa.Files = await SaveVillaFilesAsync(dto.Files, villa.Id, villa.Name);
             await _unitOfWork.SaveAsync();
-            return _mapper.Map<VillaDto>(villa);
         }
+
+        // reload including creator so the DTO contains creator info
+        var created = await _unitOfWork.Villas.GetByIdAsync(
+            villa.Id,
+            include: q => q.Include(v => v.Creator).Include(v => v.Files)
+        );
+
+        return _mapper.Map<VillaDto>(created);
+    }
 
         public async Task<bool> UpdateAsync(int id, VillaUpdateDto dto)
         {
@@ -69,7 +93,7 @@ namespace VillaManager.Services.Services
 
             // Map updated fields
             _mapper.Map(dto, villa);
-
+            villa.UpdatedAt = DateTime.UtcNow;
             // Handle deleted files
             var existingFileIds = villa.Files.Select(f => f.Id).ToList();
             var keepFileIds = dto.ExistingFileIds ?? new List<int>();
