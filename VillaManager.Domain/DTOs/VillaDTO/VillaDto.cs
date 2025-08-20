@@ -19,6 +19,6 @@ namespace VillaManager.Domain.DTOs.VillaDTO
         public List<VillaFileDto> Files { get; set; } = new();
         // New properties added for creator
         public ShowUserDto? Creator { get; set; } // Navigation property to User
-        public int CreatorId { get; set; } // Foreign key to User
+        public string CreatorId { get; set; } // Foreign key to User
     }
 }
