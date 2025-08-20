@@ -19,9 +19,9 @@ namespace VillaManager.API.Controllers
 
         // GET: api/villa
         [HttpGet]
-        public async Task<IActionResult> GetAllAsync()
+        public async Task<IActionResult> GetAllAsync(string? location = null, string? name = null)
         {
-            var villas = await _villaService.GetAllAsync();
+            var villas = await _villaService.GetAllAsync( location, name);
             return Ok(villas);
         }
 

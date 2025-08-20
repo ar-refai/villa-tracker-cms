@@ -8,7 +8,7 @@ namespace VillaManager.Services.Interfaces
 {
     public interface IVillaService
     {
-        Task<IEnumerable<VillaDto>> GetAllAsync();
+        Task<IEnumerable<VillaDto>> GetAllAsync(string? location, string? name );
         Task<VillaDto> GetByIdAsync(int id);
         Task<VillaDto> CreateAsync(VillaCreateDto dto);
         Task<bool> UpdateAsync(int id, VillaUpdateDto dto);

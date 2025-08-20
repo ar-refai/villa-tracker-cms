@@ -18,19 +18,31 @@ namespace VillaManager.Services.Services
         private readonly IMapper _mapper;
         private readonly string _uploadsPath = Path.Combine("wwwroot", "uploads", "villas");
         private readonly IHttpContextAccessor _httpContextAccessor;
-        public VillaService(IUnitOfWork unitOfWork, IMapper mapper , IHttpContextAccessor httpContextAccessor)
+        public VillaService(IUnitOfWork unitOfWork, IMapper mapper, IHttpContextAccessor httpContextAccessor)
         {
             _httpContextAccessor = httpContextAccessor ?? throw new ArgumentNullException(nameof(httpContextAccessor));
             _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
             _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
         }
 
-        public async Task<IEnumerable<VillaDto>> GetAllAsync()
+        public async Task<IEnumerable<VillaDto>> GetAllAsync(string? location = null, string? name = null)
         {
-            var villas = await _unitOfWork.Villas.GetAllAsync(v => !v.IsDeleted , include: v =>
-                v.Include(v => v.Creator));
+            var query = _unitOfWork.Villas.GetAllQueryable().Where(v => !v.IsDeleted);
+
+            if (!string.IsNullOrWhiteSpace(location))
+                query = query.Where(v => v.Location.Contains(location));
+
+            if (!string.IsNullOrWhiteSpace(name))
+                query = query.Where(v => v.Name.Contains(name));
+
+            var villas = await query
+                .Include(v => v.Creator)
+                .Include(v => v.Files)
+                .ToListAsync();
+
             return _mapper.Map<IEnumerable<VillaDto>>(villas);
         }
+
 
         public async Task<VillaDto> GetByIdAsync(int id)
         {
@@ -45,83 +57,106 @@ namespace VillaManager.Services.Services
             return _mapper.Map<VillaDto>(villa);
         }
 
-         public async Task<VillaDto> CreateAsync(VillaCreateDto dto)
-    {
-        if (dto == null) throw new ArgumentNullException(nameof(dto));
-
-        // map scalar fields from dto
-        var villa = _mapper.Map<Villa>(dto);
-
-        // get current user id from claims
-        var userId = _httpContextAccessor.HttpContext?.User?.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (string.IsNullOrWhiteSpace(userId))
-            throw new InvalidOperationException("Cannot determine the current user id from the request context.");
-
-        villa.CreatorId = userId;
-        villa.CreatedAt = DateTime.UtcNow;
-        villa.UpdatedAt = DateTime.UtcNow;
-        villa.IsDeleted = false;
-
-        await _unitOfWork.Villas.AddAsync(villa);
-        await _unitOfWork.SaveAsync(); // ensure we have villa.Id
-
-        if (dto.Files?.Any() == true)
+        public async Task<VillaDto> CreateAsync(VillaCreateDto dto)
         {
-            villa.Files = await SaveVillaFilesAsync(dto.Files, villa.Id, villa.Name);
-            await _unitOfWork.SaveAsync();
+            if (dto == null) throw new ArgumentNullException(nameof(dto));
+
+            // map scalar fields from dto
+            var villa = _mapper.Map<Villa>(dto);
+
+            // get current user id from claims
+            var userId = _httpContextAccessor.HttpContext?.User?.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrWhiteSpace(userId))
+                throw new InvalidOperationException("Cannot determine the current user id from the request context.");
+
+            villa.CreatorId = userId;
+            villa.CreatedAt = DateTime.UtcNow;
+            villa.UpdatedAt = DateTime.UtcNow;
+            villa.IsDeleted = false;
+
+            // make sure collection is ready
+            villa.Files ??= new List<VillaFile>();
+
+            await _unitOfWork.Villas.AddAsync(villa);
+            await _unitOfWork.SaveAsync(); // ensure villa.Id
+
+            // handle uploads
+            if (dto.Files != null && dto.Files.Any())
+            {
+                var saved = await SaveVillaFilesAsync(dto.Files, villa.Id, villa.Name);
+                foreach (var f in saved)
+                    villa.Files.Add(f);
+
+                await _unitOfWork.SaveAsync();
+            }
+
+            // reload including navs
+            var created = await _unitOfWork.Villas.GetByIdAsync(
+                villa.Id,
+                include: q => q.Include(v => v.Creator).Include(v => v.Files)
+            );
+
+            return _mapper.Map<VillaDto>(created);
         }
 
-        // reload including creator so the DTO contains creator info
-        var created = await _unitOfWork.Villas.GetByIdAsync(
-            villa.Id,
-            include: q => q.Include(v => v.Creator).Include(v => v.Files)
-        );
-
-        return _mapper.Map<VillaDto>(created);
-    }
 
         public async Task<bool> UpdateAsync(int id, VillaUpdateDto dto)
         {
             if (dto == null)
                 throw new ArgumentNullException(nameof(dto));
 
-            var villa = await _unitOfWork.Villas.GetByIdAsync(id, 
+            var villa = await _unitOfWork.Villas.GetByIdAsync(
+                id,
                 include: q => q.Include(v => v.Files));
 
             if (villa == null || villa.IsDeleted)
                 throw new KeyNotFoundException($"Villa with ID {id} not found.");
 
-            // Map updated fields
+            // map scalar fields only (Files handled manually by us)
             _mapper.Map(dto, villa);
             villa.UpdatedAt = DateTime.UtcNow;
-            // Handle deleted files
-            var existingFileIds = villa.Files.Select(f => f.Id).ToList();
-            var keepFileIds = dto.ExistingFileIds ?? new List<int>();
-            var filesToDelete = villa.Files.Where(f => !keepFileIds.Contains(f.Id)).ToList();
+            villa.Files ??= new List<VillaFile>();
 
-            foreach (var file in filesToDelete)
+            // 1) Remove files that are not in ExistingFileIds
+            var keepIds = new HashSet<int>(dto.ExistingFileIds ?? new List<int>());
+            var toDelete = villa.Files.Where(f => !keepIds.Contains(f.Id)).ToList();
+
+            foreach (var f in toDelete)
             {
-                DeletePhysicalFile(file.FilePath);
-                await _unitOfWork.VillaFiles.HardDeleteAsync(file.Id); // physical delete from DB
+                DeletePhysicalFile(f.FilePath);
+                await _unitOfWork.VillaFiles.HardDeleteAsync(f.Id);
             }
 
-            // Handle new file uploads
+            if (toDelete.Count > 0)
+            {
+                // keep in-memory collection consistent
+                villa.Files = villa.Files.Where(f => keepIds.Contains(f.Id)).ToList();
+                await _unitOfWork.SaveAsync(); // commit deletions before inserting new ones
+            }
+
+            // 2) Add new files
             if (dto.NewFiles != null && dto.NewFiles.Any())
             {
-                var uploadedFiles = await SaveVillaFilesAsync(dto.NewFiles, villa.Id, villa.Name);
-                foreach (var file in uploadedFiles)
-                    villa.Files.Add(file);
+                var uploaded = await SaveVillaFilesAsync(dto.NewFiles, villa.Id, villa.Name);
+                foreach (var f in uploaded)
+                    villa.Files.Add(f);
+
+                await _unitOfWork.SaveAsync(); // commit new VillaFile rows
             }
 
+            // 3) Persist scalar changes on the Villa row
             await _unitOfWork.Villas.UpdateAsync(villa);
+            await _unitOfWork.SaveAsync();
+
             return true;
         }
 
 
 
+
         public async Task<bool> DeleteAsync(int id)
         {
-            var villa = await _unitOfWork.Villas.GetByIdAsync(id, 
+            var villa = await _unitOfWork.Villas.GetByIdAsync(id,
                 include: q => q.Include(v => v.Files));
 
             if (villa == null || villa.IsDeleted)
@@ -149,7 +184,7 @@ namespace VillaManager.Services.Services
 
 
 
-        private async Task<List<VillaFile>> SaveVillaFilesAsync(IEnumerable<IFormFile> files, int villaId,string villaName)
+        private async Task<List<VillaFile>> SaveVillaFilesAsync(IEnumerable<IFormFile> files, int villaId, string villaName)
         {
             Directory.CreateDirectory(_uploadsPath);
             var villaFiles = new List<VillaFile>();

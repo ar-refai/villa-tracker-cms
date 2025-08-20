@@ -19,7 +19,8 @@ namespace VillaManager.Data.Models
         public User Creator { get; set; }                                   // Navigation property to User *** new
 
         // Navigation property to files associated with the villa
-        public ICollection<VillaFile> Files { get; set; }
+        public ICollection<VillaFile> Files { get; set; } = new List<VillaFile>();
+
 
         // Timestamps for creation and updates
         public DateTime? UpdatedAt { get; set; } = DateTime.UtcNow;      // Optional UTC timestamp for updated at  *** new

@@ -11,19 +11,18 @@ namespace VillaManager.API.Mapping
     {
         public AutoMapping()
         {
-            // Map User to ShowUserDto (to expose user details to the API)
             CreateMap<User, ShowUserDto>()
-                .ForMember(dest => dest.FullName, opt => opt.MapFrom(src => src.Name));
+            .ForMember(dest => dest.FullName, opt => opt.MapFrom(src => src.Name));
 
-            // Map ShowUserDto to User (for updates, if necessary)
             CreateMap<ShowUserDto, User>()
                 .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.FullName));
-            // Map Villa to VillaDto
+
             CreateMap<Villa, VillaDto>()
                 .ForMember(dest => dest.Files, opt => opt.MapFrom(src => src.Files));
-            
+
             CreateMap<VillaFile, VillaFileDto>();
             CreateMap<VillaFileDto, VillaFile>();
+
 
             CreateMap<VillaDto, Villa>()
                 .ForMember(dest => dest.Id, opt => opt.Ignore()) // Ignore Id on create
@@ -38,7 +37,6 @@ namespace VillaManager.API.Mapping
                 .ForMember(dest => dest.CreatorId, opt => opt.MapFrom(src => src.CreatorId));
 
             // This mapping is used when updating an existing villa
-            CreateMap<VillaCreateDto, Villa>();
             CreateMap<VillaUpdateDto, Villa>()
                 .ForMember(dest => dest.Files, opt => opt.Ignore()); // We'll handle files manually
         }
