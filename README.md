@@ -24,3 +24,5 @@ VillaManager.sln
 ├── VillaManager.Domain # DTOs, Enums, Entity models
 ├── VillaManager.Services # Business logic layer
 ├── VillaManager.Blazor # Blazor Server UI (Frontend)
+
+![Villa](VillaTrackerEndPoints.png)
